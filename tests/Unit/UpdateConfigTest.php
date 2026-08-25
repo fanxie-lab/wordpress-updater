@@ -1,11 +1,11 @@
 <?php
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates\Tests\Unit;
+namespace FanxieLab\WpUpdates\Tests\Unit;
 
-use Fanxie\WpUpdates\Package;
-use Fanxie\WpUpdates\PackageType;
-use Fanxie\WpUpdates\UpdateConfig;
+use FanxieLab\WpUpdates\Package;
+use FanxieLab\WpUpdates\PackageType;
+use FanxieLab\WpUpdates\UpdateConfig;
 use PHPUnit\Framework\TestCase;
 
 final class UpdateConfigTest extends TestCase {

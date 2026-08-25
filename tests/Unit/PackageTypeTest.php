@@ -2,14 +2,14 @@
 /**
  * Unit tests for the hook names the update client attaches to.
  *
- * @package Fanxie\WpUpdates\Tests
+ * @package FanxieLab\WpUpdates\Tests
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates\Tests\Unit;
+namespace FanxieLab\WpUpdates\Tests\Unit;
 
-use Fanxie\WpUpdates\PackageType;
+use FanxieLab\WpUpdates\PackageType;
 use PHPUnit\Framework\TestCase;
 
 /**

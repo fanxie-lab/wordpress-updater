@@ -1,11 +1,11 @@
 <?php
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates\Tests\Unit;
+namespace FanxieLab\WpUpdates\Tests\Unit;
 
 use Brain\Monkey;
 use Brain\Monkey\Actions;
-use Fanxie\WpUpdates\Log;
+use FanxieLab\WpUpdates\Log;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\TestCase;
 

@@ -2,12 +2,12 @@
 /**
  * The two kinds of thing this site updates.
  *
- * @package Fanxie\WpUpdates
+ * @package FanxieLab\WpUpdates
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates;
+namespace FanxieLab\WpUpdates;
 
 /**
  * A package kind, and everything that differs between the two.

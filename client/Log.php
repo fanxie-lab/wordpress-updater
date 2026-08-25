@@ -2,12 +2,12 @@
 /**
  * Where a refused update goes.
  *
- * @package Fanxie\WpUpdates
+ * @package FanxieLab\WpUpdates
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates;
+namespace FanxieLab\WpUpdates;
 
 /**
  * Records a refusal twice: as an action, and as a line in the PHP error log.

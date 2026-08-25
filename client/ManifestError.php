@@ -2,12 +2,12 @@
 /**
  * Raised when a manifest cannot be trusted.
  *
- * @package Fanxie\WpUpdates
+ * @package FanxieLab\WpUpdates
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates;
+namespace FanxieLab\WpUpdates;
 
 use RuntimeException;
 

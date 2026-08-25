@@ -2,12 +2,12 @@
 /**
  * The verified contents of an update manifest.
  *
- * @package Fanxie\WpUpdates
+ * @package FanxieLab\WpUpdates
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates;
+namespace FanxieLab\WpUpdates;
 
 /*
  * Every `throw` below constructs a ManifestError, which has exactly one

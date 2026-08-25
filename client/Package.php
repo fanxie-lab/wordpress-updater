@@ -2,12 +2,12 @@
 /**
  * One package this build publishes updates for.
  *
- * @package Fanxie\WpUpdates
+ * @package FanxieLab\WpUpdates
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates;
+namespace FanxieLab\WpUpdates;
 
 /**
  * A theme or plugin, as the update client identifies it.

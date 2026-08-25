@@ -2,12 +2,12 @@
 /**
  * Unit tests for detached-signature verification.
  *
- * @package Fanxie\WpUpdates\Tests
+ * @package FanxieLab\WpUpdates\Tests
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates\Tests\Unit;
+namespace FanxieLab\WpUpdates\Tests\Unit;
 
 /*
  * The Unit suite runs without WordPress, so `wp_json_encode()` does not exist
@@ -17,8 +17,8 @@ namespace Fanxie\WpUpdates\Tests\Unit;
 // phpcs:disable WordPress.WP.AlternativeFunctions.json_encode_json_encode
 // phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 
-use Fanxie\WpUpdates\ManifestError;
-use Fanxie\WpUpdates\Verifier;
+use FanxieLab\WpUpdates\ManifestError;
+use FanxieLab\WpUpdates\Verifier;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 

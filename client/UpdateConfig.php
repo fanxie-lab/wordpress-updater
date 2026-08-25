@@ -2,12 +2,12 @@
 /**
  * Everything one client build needs to know about its update service.
  *
- * @package Fanxie\WpUpdates
+ * @package FanxieLab\WpUpdates
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates;
+namespace FanxieLab\WpUpdates;
 
 /**
  * Compile-time configuration for the update client.

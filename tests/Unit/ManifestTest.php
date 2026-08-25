@@ -2,16 +2,16 @@
 /**
  * Unit tests for manifest parsing and version comparison.
  *
- * @package Fanxie\WpUpdates\Tests
+ * @package FanxieLab\WpUpdates\Tests
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates\Tests\Unit;
+namespace FanxieLab\WpUpdates\Tests\Unit;
 
-use Fanxie\WpUpdates\Manifest;
-use Fanxie\WpUpdates\ManifestError;
-use Fanxie\WpUpdates\PackageType;
+use FanxieLab\WpUpdates\Manifest;
+use FanxieLab\WpUpdates\ManifestError;
+use FanxieLab\WpUpdates\PackageType;
 use PHPUnit\Framework\TestCase;
 
 /**

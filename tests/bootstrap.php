@@ -13,12 +13,12 @@
  * Running the Integration suite outside the container therefore fails loudly
  * rather than reporting an empty pass, which is the point.
  *
- * @package Fanxie\WpUpdates\Tests
+ * @package FanxieLab\WpUpdates\Tests
  */
 
 declare( strict_types=1 );
 
-namespace Fanxie\WpUpdates\Tests;
+namespace FanxieLab\WpUpdates\Tests;
 
 $fx_updates_root = dirname( __DIR__ );
 
