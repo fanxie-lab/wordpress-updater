@@ -1,0 +1,81 @@
+# Example client release workflow: tag `theme-v1.2.3` or `core-v1.2.3` is the
+# whole deploy. Copy into your repo at .github/workflows/release.yml and adjust
+# the four env values in `resolve` plus the two secret names.
+name: Release
+
+on:
+  push:
+    tags: [ "theme-v*", "core-v*" ]
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Which package to build (dry run — nothing publishes)"
+        required: true
+        type: choice
+        options: [ theme, core ]
+      version:
+        description: "Version to stamp (semver, no leading v)"
+        required: true
+        type: string
+        default: "0.0.0"
+
+permissions:
+  contents: read
+
+jobs:
+  # Your own gates, by calling your CI workflow — never by restating it.
+  gates:
+    uses: ./.github/workflows/ci.yml
+
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      type: ${{ steps.r.outputs.type }}
+      slug: ${{ steps.r.outputs.slug }}
+      version: ${{ steps.r.outputs.version }}
+      source_dir: ${{ steps.r.outputs.source_dir }}
+      main_file: ${{ steps.r.outputs.main_file }}
+      publish: ${{ steps.r.outputs.publish }}
+    steps:
+      - id: r
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+          INPUT_PACKAGE: ${{ inputs.package }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == "push" ]]; then
+            case "$REF_NAME" in
+              theme-v*) pkg=theme; version="${REF_NAME#theme-v}" ;;
+              core-v*)  pkg=core;  version="${REF_NAME#core-v}" ;;
+              *) echo "::error::${REF_NAME} is not a release tag."; exit 1 ;;
+            esac
+            publish=true
+          else
+            pkg="$INPUT_PACKAGE"; version="${INPUT_VERSION#v}"; publish=false
+          fi
+          if [[ "$pkg" == "theme" ]]; then
+            echo "type=theme";              echo "slug=stilotex"
+            echo "source_dir=themes/stilotex"; echo "main_file=style.css"
+          else
+            echo "type=plugin";             echo "slug=stilotex-core"
+            echo "source_dir=plugins/stilotex-core"; echo "main_file=stilotex-core.php"
+          fi >> "$GITHUB_OUTPUT"
+          { echo "version=${version}"; echo "publish=${publish}"; } >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [ gates, resolve ]
+    uses: fanxielab/fanxie-wp-updates/.github/workflows/release.yml@main
+    with:
+      type: ${{ needs.resolve.outputs.type }}
+      slug: ${{ needs.resolve.outputs.slug }}
+      namespace: stilotex
+      version: ${{ needs.resolve.outputs.version }}
+      source_dir: ${{ needs.resolve.outputs.source_dir }}
+      main_file: ${{ needs.resolve.outputs.main_file }}
+      key_file: plugins/stilotex-core/src/UpdateKey.php
+      publish: ${{ needs.resolve.outputs.publish == 'true' }}
+    secrets:
+      signing_key: ${{ secrets.STILOTEX_UPDATE_SIGNING_KEY }}
+      upload_token: ${{ secrets.STILOTEX_UPDATE_UPLOAD_TOKEN }}

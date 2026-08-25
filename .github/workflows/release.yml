@@ -1,0 +1,224 @@
+name: Release (reusable)
+
+# Called by client repos on tag push (spec §6). The caller runs its own CI
+# gates first (`uses: ./.github/workflows/ci.yml`) and then hands off here.
+# Order on publish (spec §6.3): ZIP up → public URL resolves → sign → manifest
+# up. The write worker independently refuses a manifest whose ZIP is missing.
+#
+# Secrets (per client repo): signing_key = {NS}_UPDATE_SIGNING_KEY,
+# upload_token = {NS}_UPDATE_UPLOAD_TOKEN. No cloud-storage credentials exist
+# in client repos; the worker holds the bucket binding.
+
+on:
+  workflow_call:
+    inputs:
+      type:
+        description: "'theme' or 'plugin'"
+        required: true
+        type: string
+      slug:
+        description: "Package directory name, e.g. 'stilotex'"
+        required: true
+        type: string
+      namespace:
+        description: "Tenant namespace, e.g. 'stilotex'"
+        required: true
+        type: string
+      version:
+        description: "Semver, no leading v"
+        required: true
+        type: string
+      source_dir:
+        description: "Package directory in the caller repo, e.g. 'themes/stilotex'"
+        required: true
+        type: string
+      main_file:
+        description: "Header file relative to source_dir: style.css or the plugin main file"
+        required: true
+        type: string
+      key_file:
+        description: "PHP file (caller repo) whose COMPILED constant holds the public key"
+        required: true
+        type: string
+      publish:
+        description: "false = dry run: build, sign, verify, stop before uploading"
+        required: true
+        type: boolean
+      update_host:
+        required: false
+        type: string
+        default: "wp-updates.fanxie.cloud"
+      upload_host:
+        required: false
+        type: string
+        default: "wp-updates-upload.fanxie.cloud"
+      tooling_ref:
+        description: "Git ref of fanxielab/fanxie-wp-updates to build with"
+        required: false
+        type: string
+        default: "main"
+      asset_build:
+        description: "Optional command run in the caller repo before staging (e.g. 'npm ci && npm run build')"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      signing_key:
+        required: true
+      upload_token:
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build, sign${{ inputs.publish && ', publish' || ' (dry run)' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the caller repository
+        uses: actions/checkout@v4
+
+      - name: Check out the release tooling
+        uses: actions/checkout@v4
+        with:
+          repository: fanxielab/fanxie-wp-updates
+          ref: ${{ inputs.tooling_ref }}
+          path: .fx-updates
+
+      - name: Validate inputs
+        env:
+          TYPE: ${{ inputs.type }}
+          SLUG: ${{ inputs.slug }}
+          NS: ${{ inputs.namespace }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$TYPE" =~ ^(theme|plugin)$ ]] || { echo "::error::type must be theme|plugin"; exit 1; }
+          [[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]] || { echo "::error::'$SLUG' is not a plausible slug"; exit 1; }
+          [[ "$NS" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "::error::'$NS' is not a plausible namespace"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || { echo "::error::'$VERSION' is not semver"; exit 1; }
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          extensions: sodium, zip
+          tools: composer:v2
+
+      - name: Require a compiled-in public key
+        run: |
+          set -euo pipefail
+          if grep -q "public const COMPILED = '';" '${{ inputs.key_file }}'; then
+            echo "::error::No update signing key is compiled into ${{ inputs.key_file }}. Run 'php bin/release.php keygen --write-to=${{ inputs.key_file }}' and commit the result."
+            exit 1
+          fi
+
+      - name: Build caller assets
+        if: inputs.asset_build != ''
+        run: ${{ inputs.asset_build }}
+
+      - name: Build the package
+        id: build
+        run: |
+          set -euo pipefail
+          zip_path="$(bash .fx-updates/bin/build.sh \
+            --source='${{ inputs.source_dir }}' \
+            --slug='${{ inputs.slug }}' \
+            --version='${{ inputs.version }}' \
+            --main-file='${{ inputs.main_file }}' \
+            --key-file='${{ inputs.key_file }}' \
+            --out="${GITHUB_WORKSPACE}/dist" | tail -n 1)"
+          echo "zip=${zip_path}" >> "$GITHUB_OUTPUT"
+          echo '### Artefact' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          unzip -l "$zip_path" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check the archive unpacks to one correctly named directory
+        run: |
+          set -euo pipefail
+          roots="$(unzip -Z1 '${{ steps.build.outputs.zip }}' | cut -d/ -f1 | sort -u)"
+          if [[ "$roots" != '${{ inputs.slug }}' ]]; then
+            echo "::error::Archive contains '${roots}', expected a single '${{ inputs.slug }}' directory."
+            exit 1
+          fi
+
+      - name: Sign the manifest
+        env:
+          WP_UPDATE_SIGNING_KEY: ${{ secrets.signing_key }}
+        run: |
+          set -euo pipefail
+          header_file='${{ inputs.source_dir }}/${{ inputs.main_file }}'
+          field() {
+            sed -nE "s/^[[:space:]]*\*?[[:space:]]*$1:[[:space:]]*(.*[^[:space:]])[[:space:]]*$/\1/p" "$header_file" | head -n 1
+          }
+          php .fx-updates/bin/release.php manifest \
+            --type='${{ inputs.type }}' \
+            --slug='${{ inputs.slug }}' \
+            --version='${{ inputs.version }}' \
+            --package='https://${{ inputs.update_host }}/${{ inputs.namespace }}/packages/${{ inputs.type }}-${{ inputs.slug }}-${{ inputs.version }}.zip' \
+            --requires="$(field 'Requires at least')" \
+            --requires-php="$(field 'Requires PHP')" \
+            --tested="$(field 'Tested up to')" \
+            --out='dist/${{ inputs.type }}-${{ inputs.slug }}.json'
+
+      - name: Verify the manifest with the key the build ships
+        run: |
+          php .fx-updates/bin/release.php verify \
+            --manifest='dist/${{ inputs.type }}-${{ inputs.slug }}.json' \
+            --host='${{ inputs.update_host }}' \
+            --namespace='${{ inputs.namespace }}' \
+            --key-file='${{ inputs.key_file }}'
+
+      - name: Keep the artefacts either way
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.slug }}-${{ inputs.version }}
+          path: |
+            dist/*.zip
+            dist/*.json
+          retention-days: 14
+
+      - name: Dry run complete
+        if: ${{ !inputs.publish }}
+        run: echo 'Built, signed and verified. Nothing was published.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the package ZIP
+        if: ${{ inputs.publish }}
+        env:
+          UPLOAD_TOKEN: ${{ secrets.upload_token }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X PUT \
+            -H "Authorization: Bearer ${UPLOAD_TOKEN}" \
+            --data-binary '@${{ steps.build.outputs.zip }}' \
+            'https://${{ inputs.upload_host }}/${{ inputs.namespace }}/packages/${{ inputs.type }}-${{ inputs.slug }}-${{ inputs.version }}.zip'
+
+      - name: Confirm the public package URL resolves before advertising it
+        if: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          url='https://${{ inputs.update_host }}/${{ inputs.namespace }}/packages/${{ inputs.type }}-${{ inputs.slug }}-${{ inputs.version }}.zip'
+          status="$(curl -sS -o /dev/null -w '%{http_code}' "$url")"
+          if [[ "$status" != "200" ]]; then
+            echo "::error::${url} returned ${status}; not publishing a manifest that points at it."
+            exit 1
+          fi
+
+      - name: Upload the manifest
+        if: ${{ inputs.publish }}
+        env:
+          UPLOAD_TOKEN: ${{ secrets.upload_token }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X PUT \
+            -H "Authorization: Bearer ${UPLOAD_TOKEN}" \
+            --data-binary '@dist/${{ inputs.type }}-${{ inputs.slug }}.json' \
+            'https://${{ inputs.upload_host }}/${{ inputs.namespace }}/${{ inputs.type }}-${{ inputs.slug }}.json'
+          echo "Published https://${{ inputs.update_host }}/${{ inputs.namespace }}/${{ inputs.type }}-${{ inputs.slug }}.json" >> "$GITHUB_STEP_SUMMARY"
