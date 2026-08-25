@@ -2,8 +2,9 @@ name: Release (reusable)
 
 # Called by client repos on tag push (spec §6). The caller runs its own CI
 # gates first (`uses: ./.github/workflows/ci.yml`) and then hands off here.
-# Order on publish (spec §6.3): ZIP up → public URL resolves → sign → manifest
-# up. The write worker independently refuses a manifest whose ZIP is missing.
+# Order on publish (spec §6.3): sign → verify → ZIP up → public URL resolves →
+# manifest up. The write worker independently refuses a manifest whose ZIP is
+# missing.
 #
 # Secrets (per client repo): signing_key = {NS}_UPDATE_SIGNING_KEY,
 # upload_token = {NS}_UPDATE_UPLOAD_TOKEN. No cloud-storage credentials exist
@@ -68,6 +69,13 @@ on:
       upload_token:
         required: true
 
+# One release per namespace+slug at a time — a second tag pushed while a
+# publish is mid-flight must queue behind it, not race it for the same
+# manifest/package keys in R2.
+concurrency:
+  group: release-${{ inputs.namespace }}-${{ inputs.slug }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -81,10 +89,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the caller repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Check out the release tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: fanxielab/fanxie-wp-updates
           ref: ${{ inputs.tooling_ref }}
@@ -96,15 +104,32 @@ jobs:
           SLUG: ${{ inputs.slug }}
           NS: ${{ inputs.namespace }}
           VERSION: ${{ inputs.version }}
+          UPDATE_HOST: ${{ inputs.update_host }}
+          UPLOAD_HOST: ${{ inputs.upload_host }}
+          SOURCE_DIR: ${{ inputs.source_dir }}
+          MAIN_FILE: ${{ inputs.main_file }}
+          KEY_FILE: ${{ inputs.key_file }}
         run: |
           set -euo pipefail
           [[ "$TYPE" =~ ^(theme|plugin)$ ]] || { echo "::error::type must be theme|plugin"; exit 1; }
           [[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]] || { echo "::error::'$SLUG' is not a plausible slug"; exit 1; }
           [[ "$NS" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "::error::'$NS' is not a plausible namespace"; exit 1; }
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || { echo "::error::'$VERSION' is not semver"; exit 1; }
+          [[ "$UPDATE_HOST" =~ ^[a-z0-9.-]+$ ]] || { echo "::error::'$UPDATE_HOST' is not a plausible hostname"; exit 1; }
+          [[ "$UPLOAD_HOST" =~ ^[a-z0-9.-]+$ ]] || { echo "::error::'$UPLOAD_HOST' is not a plausible hostname"; exit 1; }
+
+          check_path() {
+            local name="$1" value="$2"
+            [[ "$value" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "::error::'$value' ($name) contains characters outside [A-Za-z0-9._/-]"; exit 1; }
+            [[ "$value" != -* ]] || { echo "::error::'$value' ($name) must not start with a dash"; exit 1; }
+            [[ "$value" != *..* ]] || { echo "::error::'$value' ($name) must not contain '..'"; exit 1; }
+          }
+          check_path source_dir "$SOURCE_DIR"
+          check_path main_file "$MAIN_FILE"
+          check_path key_file "$KEY_FILE"
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.3"
           coverage: none
@@ -112,27 +137,48 @@ jobs:
           tools: composer:v2
 
       - name: Require a compiled-in public key
+        env:
+          KEY_FILE: ${{ inputs.key_file }}
         run: |
           set -euo pipefail
-          if grep -q "public const COMPILED = '';" '${{ inputs.key_file }}'; then
-            echo "::error::No update signing key is compiled into ${{ inputs.key_file }}. Run 'php bin/release.php keygen --write-to=${{ inputs.key_file }}' and commit the result."
+          if [[ ! -f "$KEY_FILE" ]]; then
+            echo "::error::Key file not found: ${KEY_FILE}"
+            exit 1
+          fi
+          if ! grep -q "public const COMPILED = '[^']*';" "$KEY_FILE"; then
+            echo "::error::No COMPILED constant found in ${KEY_FILE}."
+            exit 1
+          fi
+          if grep -q "public const COMPILED = '';" "$KEY_FILE"; then
+            echo "::error::No update signing key is compiled into ${KEY_FILE}. Run 'php bin/release.php keygen --write-to=${KEY_FILE}' and commit the result."
             exit 1
           fi
 
+      # asset_build is executed verbatim, by design — it is caller-controlled
+      # build tooling (e.g. 'npm ci && npm run build') running against the
+      # caller's own checked-out repo, not against secrets held by this
+      # workflow. Nothing here is a supply-chain concern this workflow can
+      # fix by wrapping it in env — the caller already trusts this command.
       - name: Build caller assets
         if: inputs.asset_build != ''
         run: ${{ inputs.asset_build }}
 
       - name: Build the package
         id: build
+        env:
+          SOURCE_DIR: ${{ inputs.source_dir }}
+          SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}
+          MAIN_FILE: ${{ inputs.main_file }}
+          KEY_FILE: ${{ inputs.key_file }}
         run: |
           set -euo pipefail
           zip_path="$(bash .fx-updates/bin/build.sh \
-            --source='${{ inputs.source_dir }}' \
-            --slug='${{ inputs.slug }}' \
-            --version='${{ inputs.version }}' \
-            --main-file='${{ inputs.main_file }}' \
-            --key-file='${{ inputs.key_file }}' \
+            --source="$SOURCE_DIR" \
+            --slug="$SLUG" \
+            --version="$VERSION" \
+            --main-file="$MAIN_FILE" \
+            --key-file="$KEY_FILE" \
             --out="${GITHUB_WORKSPACE}/dist" | tail -n 1)"
           echo "zip=${zip_path}" >> "$GITHUB_OUTPUT"
           {
@@ -143,43 +189,60 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check the archive unpacks to one correctly named directory
+        env:
+          ZIP_PATH: ${{ steps.build.outputs.zip }}
+          SLUG: ${{ inputs.slug }}
         run: |
           set -euo pipefail
-          roots="$(unzip -Z1 '${{ steps.build.outputs.zip }}' | cut -d/ -f1 | sort -u)"
-          if [[ "$roots" != '${{ inputs.slug }}' ]]; then
-            echo "::error::Archive contains '${roots}', expected a single '${{ inputs.slug }}' directory."
+          roots="$(unzip -Z1 "$ZIP_PATH" | cut -d/ -f1 | sort -u)"
+          if [[ "$roots" != "$SLUG" ]]; then
+            echo "::error::Archive contains '${roots}', expected a single '${SLUG}' directory."
             exit 1
           fi
 
       - name: Sign the manifest
         env:
           WP_UPDATE_SIGNING_KEY: ${{ secrets.signing_key }}
+          SOURCE_DIR: ${{ inputs.source_dir }}
+          MAIN_FILE: ${{ inputs.main_file }}
+          TYPE: ${{ inputs.type }}
+          SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}
+          UPDATE_HOST: ${{ inputs.update_host }}
+          NS: ${{ inputs.namespace }}
         run: |
           set -euo pipefail
-          header_file='${{ inputs.source_dir }}/${{ inputs.main_file }}'
+          header_file="${SOURCE_DIR}/${MAIN_FILE}"
           field() {
             sed -nE "s/^[[:space:]]*\*?[[:space:]]*$1:[[:space:]]*(.*[^[:space:]])[[:space:]]*$/\1/p" "$header_file" | head -n 1
           }
           php .fx-updates/bin/release.php manifest \
-            --type='${{ inputs.type }}' \
-            --slug='${{ inputs.slug }}' \
-            --version='${{ inputs.version }}' \
-            --package='https://${{ inputs.update_host }}/${{ inputs.namespace }}/packages/${{ inputs.type }}-${{ inputs.slug }}-${{ inputs.version }}.zip' \
+            --type="$TYPE" \
+            --slug="$SLUG" \
+            --version="$VERSION" \
+            --package="https://${UPDATE_HOST}/${NS}/packages/${TYPE}-${SLUG}-${VERSION}.zip" \
             --requires="$(field 'Requires at least')" \
             --requires-php="$(field 'Requires PHP')" \
             --tested="$(field 'Tested up to')" \
-            --out='dist/${{ inputs.type }}-${{ inputs.slug }}.json'
+            --out="dist/${TYPE}-${SLUG}.json"
 
       - name: Verify the manifest with the key the build ships
+        env:
+          TYPE: ${{ inputs.type }}
+          SLUG: ${{ inputs.slug }}
+          UPDATE_HOST: ${{ inputs.update_host }}
+          NS: ${{ inputs.namespace }}
+          KEY_FILE: ${{ inputs.key_file }}
         run: |
+          set -euo pipefail
           php .fx-updates/bin/release.php verify \
-            --manifest='dist/${{ inputs.type }}-${{ inputs.slug }}.json' \
-            --host='${{ inputs.update_host }}' \
-            --namespace='${{ inputs.namespace }}' \
-            --key-file='${{ inputs.key_file }}'
+            --manifest="dist/${TYPE}-${SLUG}.json" \
+            --host="$UPDATE_HOST" \
+            --namespace="$NS" \
+            --key-file="$KEY_FILE"
 
       - name: Keep the artefacts either way
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ inputs.slug }}-${{ inputs.version }}
           path: |
@@ -195,19 +258,37 @@ jobs:
         if: ${{ inputs.publish }}
         env:
           UPLOAD_TOKEN: ${{ secrets.upload_token }}
+          ZIP_PATH: ${{ steps.build.outputs.zip }}
+          UPLOAD_HOST: ${{ inputs.upload_host }}
+          NS: ${{ inputs.namespace }}
+          TYPE: ${{ inputs.type }}
+          SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          # Keep the bearer token out of argv (and so out of `ps`) by handing
+          # curl a config file instead of a command-line header.
+          umask 077
+          curlrc="${RUNNER_TEMP}/fx-upload-zip.curlrc"
+          printf 'header = "Authorization: Bearer %s"\n' "$UPLOAD_TOKEN" > "$curlrc"
           curl -fsS -X PUT \
-            -H "Authorization: Bearer ${UPLOAD_TOKEN}" \
-            --data-binary '@${{ steps.build.outputs.zip }}' \
-            'https://${{ inputs.upload_host }}/${{ inputs.namespace }}/packages/${{ inputs.type }}-${{ inputs.slug }}-${{ inputs.version }}.zip'
+            -K "$curlrc" \
+            --data-binary "@${ZIP_PATH}" \
+            "https://${UPLOAD_HOST}/${NS}/packages/${TYPE}-${SLUG}-${VERSION}.zip"
+          rm -f "$curlrc"
 
       - name: Confirm the public package URL resolves before advertising it
         if: ${{ inputs.publish }}
+        env:
+          UPDATE_HOST: ${{ inputs.update_host }}
+          NS: ${{ inputs.namespace }}
+          TYPE: ${{ inputs.type }}
+          SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          url='https://${{ inputs.update_host }}/${{ inputs.namespace }}/packages/${{ inputs.type }}-${{ inputs.slug }}-${{ inputs.version }}.zip'
-          status="$(curl -sS -o /dev/null -w '%{http_code}' "$url")"
+          url="https://${UPDATE_HOST}/${NS}/packages/${TYPE}-${SLUG}-${VERSION}.zip"
+          status="$(curl -sS --retry 3 --retry-all-errors -o /dev/null -w '%{http_code}' "$url")"
           if [[ "$status" != "200" ]]; then
             echo "::error::${url} returned ${status}; not publishing a manifest that points at it."
             exit 1
@@ -217,10 +298,19 @@ jobs:
         if: ${{ inputs.publish }}
         env:
           UPLOAD_TOKEN: ${{ secrets.upload_token }}
+          UPLOAD_HOST: ${{ inputs.upload_host }}
+          UPDATE_HOST: ${{ inputs.update_host }}
+          NS: ${{ inputs.namespace }}
+          TYPE: ${{ inputs.type }}
+          SLUG: ${{ inputs.slug }}
         run: |
           set -euo pipefail
+          umask 077
+          curlrc="${RUNNER_TEMP}/fx-upload-manifest.curlrc"
+          printf 'header = "Authorization: Bearer %s"\n' "$UPLOAD_TOKEN" > "$curlrc"
           curl -fsS -X PUT \
-            -H "Authorization: Bearer ${UPLOAD_TOKEN}" \
-            --data-binary '@dist/${{ inputs.type }}-${{ inputs.slug }}.json' \
-            'https://${{ inputs.upload_host }}/${{ inputs.namespace }}/${{ inputs.type }}-${{ inputs.slug }}.json'
-          echo "Published https://${{ inputs.update_host }}/${{ inputs.namespace }}/${{ inputs.type }}-${{ inputs.slug }}.json" >> "$GITHUB_STEP_SUMMARY"
+            -K "$curlrc" \
+            --data-binary "@dist/${TYPE}-${SLUG}.json" \
+            "https://${UPLOAD_HOST}/${NS}/${TYPE}-${SLUG}.json"
+          rm -f "$curlrc"
+          echo "Published https://${UPDATE_HOST}/${NS}/${TYPE}-${SLUG}.json" >> "$GITHUB_STEP_SUMMARY"
