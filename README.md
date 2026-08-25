@@ -1,4 +1,4 @@
-# fanxie-wp-updates
+# wordpress-updater
 
 Self-hosted, signed WordPress theme/plugin updates for agencies and studios
 maintaining packages across client sites — without a per-site updater plugin.
@@ -89,7 +89,7 @@ See [`docs/spec.md`](docs/spec.md) §4–5 for the full design rationale.
 ## Repository layout
 
 ```
-fanxie-wp-updates/
+wordpress-updater/
 ├── client/                 PHP update client library (FanxieLab\WpUpdates)
 ├── bin/                    release.php (keygen/zip/manifest/verify), build.sh
 ├── worker/                 Cloudflare Worker — the write path into R2

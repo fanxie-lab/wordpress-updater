@@ -66,7 +66,7 @@ jobs:
 
   publish:
     needs: [ gates, resolve ]
-    uses: fanxielab/fanxie-wp-updates/.github/workflows/release.yml@main
+    uses: fanxie-lab/wordpress-updater/.github/workflows/release.yml@main
     with:
       type: ${{ needs.resolve.outputs.type }}
       slug: ${{ needs.resolve.outputs.slug }}

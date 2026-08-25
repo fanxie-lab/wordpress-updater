@@ -54,7 +54,7 @@ on:
         type: string
         default: "wp-updates-upload.fanxie.cloud"
       tooling_ref:
-        description: "Git ref of fanxielab/fanxie-wp-updates to build with"
+        description: "Git ref of fanxie-lab/wordpress-updater to build with"
         required: false
         type: string
         default: "main"
@@ -94,7 +94,7 @@ jobs:
       - name: Check out the release tooling
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          repository: fanxielab/fanxie-wp-updates
+          repository: fanxie-lab/wordpress-updater
           ref: ${{ inputs.tooling_ref }}
           path: .fx-updates
 

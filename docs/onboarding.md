@@ -19,7 +19,7 @@ issued: [`docs/deploy.md`](deploy.md) §5.
 ## 2. Add the library to the client repo
 
 ```bash
-composer config repositories.fx-updates vcs https://github.com/fanxielab/fanxie-wp-updates
+composer config repositories.fx-updates vcs https://github.com/fanxie-lab/wordpress-updater
 composer require fanxielab/wp-update-client:dev-main
 ```
 
@@ -131,7 +131,7 @@ your client repo at `.github/workflows/release.yml`, and adjust:
   `STILOTEX_UPDATE_SIGNING_KEY` / `STILOTEX_UPDATE_UPLOAD_TOKEN`
 
 This calls the reusable workflow at
-`fanxielab/fanxie-wp-updates/.github/workflows/release.yml@main`, which does
+`fanxie-lab/wordpress-updater/.github/workflows/release.yml@main`, which does
 the actual build/sign/publish (`docs/spec.md` §6). If you forked this
 service under a different GitHub org, that `uses:` line needs updating too.
 

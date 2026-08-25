@@ -3,7 +3,7 @@
     "description": "Signed, multi-tenant theme/plugin update client and release tooling for self-hosted WordPress update services on Cloudflare R2.",
     "type": "library",
     "license": "GPL-2.0-or-later",
-    "homepage": "https://github.com/fanxielab/fanxie-wp-updates",
+    "homepage": "https://github.com/fanxie-lab/wordpress-updater",
     "require": {
         "php": ">=8.2",
         "ext-json": "*",
@@ -22,15 +22,27 @@
         "ext-zip": "Needed by bin/release.php zip and bin/build.sh (build tooling only, not on sites)"
     },
     "autoload": {
-        "psr-4": { "FanxieLab\\WpUpdates\\": "client/" }
+        "psr-4": {
+            "FanxieLab\\WpUpdates\\": "client/"
+        }
     },
     "autoload-dev": {
-        "psr-4": { "FanxieLab\\WpUpdates\\Tests\\": "tests/" }
+        "psr-4": {
+            "FanxieLab\\WpUpdates\\Tests\\": "tests/"
+        }
     },
     "minimum-stability": "stable",
-    "config": { "sort-packages": true },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2.0"
+        }
+    },
     "scripts": {
-        "test": [ "@test:unit", "@test:integration" ],
+        "test": [
+            "@test:unit",
+            "@test:integration"
+        ],
         "test:unit": "phpunit --testsuite Unit",
         "test:integration": "npx wp-env run tests-cli --env-cwd=wp-content/fx-updates-repo vendor/bin/phpunit --testsuite Integration",
         "analyse": "phpstan analyse --memory-limit=1G"
