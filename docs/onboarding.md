@@ -20,11 +20,16 @@ issued: [`docs/deploy.md`](deploy.md) §5.
 
 ```bash
 composer config repositories.fx-updates vcs https://github.com/fanxielab/fanxie-wp-updates
-composer require fanxielab/wp-update-client
+composer require fanxielab/wp-update-client:dev-main
 ```
 
 This installs the `FanxieLab\WpUpdates` client library (and `bin/release.php`,
 `bin/build.sh`) into `vendor/fanxielab/wp-update-client/`.
+
+`dev-main` is the pre-1.0 form — this repo may not have any tagged releases
+yet. Once a tagged release exists, prefer a version constraint instead (e.g.
+`composer require fanxielab/wp-update-client:^0.1`), so `composer update`
+pulls in fixes deliberately rather than whatever `main` happens to be at.
 
 ## 3. Generate a signing keypair
 
@@ -185,8 +190,8 @@ stale negative cache from an earlier failed attempt.
   immediately rather than wait, delete the site transients:
 
 ```bash
-wp transient delete stilotex_upd_plugin_stilotex-core
-wp transient delete stilotex_upd_theme_stilotex
+wp transient delete stilotex_upd_plugin_stilotex-core --network
+wp transient delete stilotex_upd_theme_stilotex --network
 ```
 
   (the pattern is `{hook_prefix}_upd_{type}_{slug}`)

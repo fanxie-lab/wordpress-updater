@@ -13,8 +13,7 @@ namespace FanxieLab\WpUpdates;
  * Every `throw` below constructs a ManifestError, which exists for exactly one
  * consumer: ManifestSource::open(), which catches it and hands the message to
  * Log. None of these strings is ever echoed, and escaping a byte count for a
- * log file would make an incident harder to read while protecting nothing. This
- * is the same call `phpcs.xml.dist` already makes for `tests/` and `bin/`.
+ * log file would make an incident harder to read while protecting nothing.
  */
 // phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 

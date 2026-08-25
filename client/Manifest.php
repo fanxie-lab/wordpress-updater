@@ -13,9 +13,8 @@ namespace FanxieLab\WpUpdates;
  * Every `throw` below constructs a ManifestError, which has exactly one
  * consumer: ManifestSource::open(), which catches it and hands the message to
  * Log. None of these strings is ever echoed, and escaping a rejected version
- * number for a log file would make an incident harder to read while protecting
- * nothing. This is the same call `phpcs.xml.dist` already makes for `tests/`
- * and `bin/`.
+ * number for a log file would make an incident harder to read while
+ * protecting nothing.
  */
 // phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
@@ -24,7 +23,7 @@ namespace FanxieLab\WpUpdates;
  *
  * Deliberately free of WordPress: no filters, no options, no HTTP, not even
  * `wp_parse_url()`. Everything this class rejects, it rejects on the shape of
- * the data alone. That is what lets `bin/dp-release.php verify` check a
+ * the data alone. That is what lets `bin/release.php verify` check a
  * manifest before publishing it using *this* class rather than a second
  * implementation that agrees with it until the day it doesn't — and it is why
  * the Unit suite can exercise every rule without a bootstrap. Whether the bytes

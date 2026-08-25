@@ -6,9 +6,9 @@ A git tag on a client repo is the whole release: it builds a ZIP, signs a
 manifest, and pushes both to a Cloudflare R2 bucket behind one small Worker.
 Sites pick the update up through WordPress core's own third-party update
 filters (`update_themes_{$hostname}` / `update_plugins_{$hostname}`, native
-since 5.8/6.1), verified with a compiled-in Ed25519 public key and a
-~450-line PHP client — no plugin marketplace, no third-party updater, no
-standing write credentials outside this service.
+since 5.8/6.1), verified with a compiled-in Ed25519 public key and a small,
+heavily documented PHP client library — no plugin marketplace, no
+third-party updater, no standing write credentials outside this service.
 
 ## How a release works
 
@@ -16,14 +16,22 @@ standing write credentials outside this service.
 git tag theme-v1.4.2
    │
    ▼
-client repo CI gates ──▶ stage → stamp → zip ──▶ PUT zip ─▶ Write Worker ─▶ R2
-                                    │                          (per-namespace
-                                    ▼                           bearer token)
+client repo CI gates ──▶ stage → stamp → zip
+                                    │
+                                    ▼
                           sign manifest (Ed25519,
                           key only in GH secrets)
                                     │
                                     ▼
-                              PUT manifest ─▶ Write Worker ─▶ R2
+                             verify manifest
+                                    │
+                                    ▼
+                    PUT zip ─▶ Write Worker ─▶ R2  (per-namespace
+                                    │                bearer token)
+                        confirm public zip URL resolves
+                                    │
+                                    ▼
+                    PUT manifest ─▶ Write Worker ─▶ R2
                                                                │
    site cron: wp_update_plugins() ◀── GET manifest.json ◀──────┘
    verify signature against compiled public key → offer → auto-update
@@ -34,12 +42,14 @@ the package into a clean copy (never dirtying the working tree), stamps the
 version, runs `composer install --no-dev` inside the stage, prunes dev files,
 and zips it with exactly one top-level directory named for the slug.
 `bin/release.php manifest` signs the payload with the namespace's secret key,
-which exists only as a GitHub Actions secret. CI uploads the ZIP first,
-confirms the public package URL resolves through the read domain, and only
-then signs and uploads the manifest; the write Worker independently refuses
-any manifest whose ZIP isn't already sitting in the bucket (`409`) — so a
-manifest is never published pointing at a download that doesn't exist yet,
-whether or not CI's own check ran.
+which exists only as a GitHub Actions secret, and `bin/release.php verify`
+checks the signed manifest against the key the build ships — both happen
+before anything is published. Only then does CI upload the ZIP, confirm the
+public package URL resolves through the read domain, and upload the signed
+manifest; the write Worker independently refuses any manifest whose ZIP
+isn't already sitting in the bucket (`409`) — so a manifest is never
+published pointing at a download that doesn't exist yet, whether or not
+CI's own check ran.
 
 ## Security model
 

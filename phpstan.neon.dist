@@ -6,4 +6,5 @@ parameters:
     level: 8
     paths:
         - client
+        - bin
     treatPhpDocTypesAsCertain: false
