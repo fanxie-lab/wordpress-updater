@@ -135,10 +135,12 @@ jobs:
             --key-file='${{ inputs.key_file }}' \
             --out="${GITHUB_WORKSPACE}/dist" | tail -n 1)"
           echo "zip=${zip_path}" >> "$GITHUB_OUTPUT"
-          echo '### Artefact' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          unzip -l "$zip_path" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '### Artefact'
+            echo '```'
+            unzip -l "$zip_path"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check the archive unpacks to one correctly named directory
         run: |
