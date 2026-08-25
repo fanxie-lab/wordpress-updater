@@ -71,4 +71,30 @@ final class BuildScriptTest extends TestCase {
 		[ , $code ] = $this->build( '--allow-unkeyed' );
 		$this->assertSame( 0, $code, 'Local inspection builds are allowed with the explicit flag.' );
 	}
+
+	public function test_refuses_to_build_when_the_key_file_is_missing(): void {
+		unlink( $this->dir . '/Key.php' );
+
+		[ $output, $code ] = $this->build();
+		$this->assertSame( 1, $code );
+		$this->assertStringContainsString( 'key file not found', strtolower( implode( "\n", $output ) ) );
+
+		// A missing file is an error, not an unkeyed build — --allow-unkeyed must not bypass it.
+		[ $output, $code ] = $this->build( '--allow-unkeyed' );
+		$this->assertSame( 1, $code );
+		$this->assertStringContainsString( 'key file not found', strtolower( implode( "\n", $output ) ) );
+	}
+
+	public function test_refuses_to_build_when_the_key_file_has_no_compiled_constant(): void {
+		file_put_contents( $this->dir . '/Key.php', "<?php\nfinal class Key {\n\tpublic const OTHER = 'x';\n}\n" );
+
+		[ $output, $code ] = $this->build();
+		$this->assertSame( 1, $code );
+		$this->assertStringContainsString( 'no compiled constant', strtolower( implode( "\n", $output ) ) );
+
+		// A missing constant is an error, not an unkeyed build — --allow-unkeyed must not bypass it.
+		[ $output, $code ] = $this->build( '--allow-unkeyed' );
+		$this->assertSame( 1, $code );
+		$this->assertStringContainsString( 'no compiled constant', strtolower( implode( "\n", $output ) ) );
+	}
 }

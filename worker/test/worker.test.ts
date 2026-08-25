@@ -63,6 +63,30 @@ describe("methods and paths", () => {
 		expect((await put("/demo/packages/extra/plugin-x-1.0.0.zip", ZIP_BODY)).status).toBe(404);
 		expect((await put("/demo/notes.txt", "hi")).status).toBe(404);
 	});
+
+	it("rejects a bare one-segment path", async () => {
+		expect((await put("/demo", ZIP_BODY)).status).toBe(404);
+	});
+});
+
+describe("Content-Length pre-check", () => {
+	it("rejects an oversized manifest body before buffering it, by declared length", async () => {
+		const oversized = "a".repeat(64 * 1024 + 1);
+		const res = await put("/demo/plugin-fx-demo.json", oversized);
+		expect(res.status).toBe(413);
+	});
+
+	it("rejects a package whose declared Content-Length exceeds the cap, without needing a 100MB body", async () => {
+		const res = await SELF.fetch(`${BASE}/${ZIP_KEY}`, {
+			method: "PUT",
+			headers: {
+				Authorization: "Bearer test-token-demo",
+				"content-length": String(100 * 1024 * 1024 + 1),
+			},
+			body: ZIP_BODY,
+		});
+		expect(res.status).toBe(413);
+	});
 });
 
 describe("packages", () => {

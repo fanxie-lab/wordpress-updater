@@ -3,7 +3,7 @@
 # Build a distributable ZIP for a theme or plugin package.
 #
 #   bin/build.sh --source=DIR --slug=NAME --version=1.2.3 \
-#                 --main-file=my-plugin.php --key-file=src/Update/PublicKey.php \
+#                 --main-file=my-plugin.php --key-file=src/UpdateKey.php \
 #                 --out=dist
 #
 # What it does, in order:
@@ -83,10 +83,13 @@ fi
 
 HEADER_FILE="$MAIN_FILE"
 
+[[ -f "$KEY_FILE" ]] || die "key file not found: ${KEY_FILE}"
+
 # A build with no trust anchor produces a ZIP no site will ever be told about,
 # because the manifest that points at it cannot be verified. Better to stop here
 # than to publish a release that silently never installs.
 KEY_LINE="$(grep -o "public const COMPILED = '[^']*';" "$KEY_FILE" || true)"
+[[ -n "$KEY_LINE" ]] || die "no compiled constant found in ${KEY_FILE}"
 
 if [[ "$KEY_LINE" == "public const COMPILED = '';" ]]; then
 	if [[ "$ALLOW_UNKEYED" -eq 1 ]]; then

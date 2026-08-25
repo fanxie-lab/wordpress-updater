@@ -139,10 +139,24 @@ export default {
 		const presented = auth.startsWith("Bearer ") ? auth.slice(7) : "";
 		if (presented === "" || !(await tokenMatches(presented, expected))) return refuse(401, "bad token");
 
+		const isManifest = segments.length === 2;
+		const isPackage = segments.length === 3 && segments[1] === "packages";
+		if (!isManifest && !isPackage) return refuse(404, "unrecognized path");
+
+		// The path shape alone tells us which cap applies, so a declared
+		// Content-Length over that cap is refused before request.arrayBuffer()
+		// ever buffers the (possibly huge) body into memory. A missing or
+		// unparsable header falls through to the post-buffer checks below,
+		// which are the backstop for a body whose declared length lied.
+		const cap = isPackage ? MAX_PACKAGE_BYTES : MAX_MANIFEST_BYTES;
+		const declaredLength = Number(request.headers.get("content-length"));
+		if (Number.isFinite(declaredLength) && declaredLength > cap) {
+			return refuse(413, isPackage ? "package too large" : "manifest too large");
+		}
+
 		const body = await request.arrayBuffer();
 
-		if (segments.length === 2) return handleManifest(env, ns, segments[1], body);
-		if (segments.length === 3 && segments[1] === "packages") return handlePackage(env, ns, segments[2], body);
-		return refuse(404, "unrecognized path");
+		if (isManifest) return handleManifest(env, ns, segments[1], body);
+		return handlePackage(env, ns, segments[2], body);
 	},
 } satisfies ExportedHandler<Env>;
