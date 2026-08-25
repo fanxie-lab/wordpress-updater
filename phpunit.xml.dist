@@ -24,7 +24,7 @@
 	</testsuites>
 	<coverage>
 		<include>
-			<directory suffix=".php">src</directory>
+			<directory suffix=".php">client</directory>
 		</include>
 	</coverage>
 	<php>

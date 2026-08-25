@@ -22,7 +22,7 @@
         "ext-zip": "Needed by bin/release.php zip and bin/build.sh (build tooling only, not on sites)"
     },
     "autoload": {
-        "psr-4": { "Fanxie\\WpUpdates\\": "src/" }
+        "psr-4": { "Fanxie\\WpUpdates\\": "client/" }
     },
     "autoload-dev": {
         "psr-4": { "Fanxie\\WpUpdates\\Tests\\": "tests/" }
