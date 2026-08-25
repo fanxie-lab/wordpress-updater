@@ -59,6 +59,14 @@ by the full Update URI path (namespace + package), not just by hostname, and
 MUST return `false` for any package whose Update URI it doesn't own — two of
 our packages on one site must not answer for each other.
 
+> **Amendment (implementation, 2026-08):** "return `false` for any package whose
+> Update URI it doesn't own" is implemented as *pass the incoming value through
+> untouched* for unowned URIs, and fail-closed (`false`) only for owned ones.
+> Sibling clients from different namespaces legally share these two filters;
+> an unconditional `false` would wipe a sibling's earlier verified offer
+> depending on hook order. The invariant that matters — a client never
+> produces an offer for a package it doesn't own — is preserved.
+
 Package ZIPs live under the namespace too:
 
 ```
