@@ -34,10 +34,12 @@ the package into a clean copy (never dirtying the working tree), stamps the
 version, runs `composer install --no-dev` inside the stage, prunes dev files,
 and zips it with exactly one top-level directory named for the slug.
 `bin/release.php manifest` signs the payload with the namespace's secret key,
-which exists only as a GitHub Actions secret. The write Worker uploads the
-ZIP first, confirms the public URL resolves, and only then accepts the
-manifest — so a manifest is never published pointing at a download that
-doesn't exist yet.
+which exists only as a GitHub Actions secret. CI uploads the ZIP first,
+confirms the public package URL resolves through the read domain, and only
+then signs and uploads the manifest; the write Worker independently refuses
+any manifest whose ZIP isn't already sitting in the bucket (`409`) — so a
+manifest is never published pointing at a download that doesn't exist yet,
+whether or not CI's own check ran.
 
 ## Security model
 
