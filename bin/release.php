@@ -64,6 +64,31 @@ foreach ( array( $fx_release_root . '/vendor/autoload.php', dirname( __DIR__, 3 
 	}
 }
 
+/*
+ * No Composer autoloader found — or one was found that doesn't know this
+ * library. Fall back to a minimal PSR-4 loader for our own namespace, so the
+ * tool works from a bare git checkout with no `composer install` at all. That
+ * is exactly the reusable release workflow's situation: it checks this repo
+ * out as build tooling, and the library has no runtime dependencies to
+ * install anyway.
+ */
+if ( ! class_exists( Verifier::class ) ) {
+	spl_autoload_register(
+		static function ( string $fx_class ) use ( $fx_release_root ): void {
+			$fx_prefix = 'FanxieLab\\WpUpdates\\';
+
+			if ( str_starts_with( $fx_class, $fx_prefix ) ) {
+				$fx_file = $fx_release_root . '/client/'
+					. str_replace( '\\', '/', substr( $fx_class, strlen( $fx_prefix ) ) ) . '.php';
+
+				if ( is_file( $fx_file ) ) {
+					require $fx_file;
+				}
+			}
+		}
+	);
+}
+
 /**
  * Write a line to a stream. WordPress is not loaded, so neither is WP_Filesystem.
  *

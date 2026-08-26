@@ -1,18 +1,26 @@
 {
-    "$schema": "node_modules/wrangler/config-schema.json",
-    "name": "wp-updates-write",
-    "main": "src/index.ts",
-    "compatibility_date": "2026-08-01",
-    "routes": [
-        { "pattern": "wp-updates-upload.fanxie.cloud", "custom_domain": true }
-    ],
-    "r2_buckets": [
-        { "binding": "BUCKET", "bucket_name": "wp-updates" }
-    ],
-    "vars": {
-        "PUBLIC_HOST": "wp-updates.fanxie.cloud"
-    },
-    "observability": { "enabled": true }
-    // Per-namespace tokens are Worker secrets, never in this file:
-    //   npx wrangler secret put UPLOAD_TOKEN_STILOTEX
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "wp-updates-write",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-01",
+	"routes": [
+		{
+			"pattern": "wp-updates-upload.fanxie.cloud",
+			"custom_domain": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "wp-updates"
+		}
+	],
+	"vars": {
+		"PUBLIC_HOST": "wp-updates.fanxie.cloud"
+	},
+	"observability": {
+		"enabled": true
+	}
+	// Per-namespace tokens are Worker secrets, never in this file:
+	//   npx wrangler secret put UPLOAD_TOKEN_STILOTEX
 }

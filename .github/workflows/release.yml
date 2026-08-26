@@ -136,6 +136,13 @@ jobs:
           extensions: sodium, zip
           tools: composer:v2
 
+      # The tooling checkout is a bare clone: generate its autoloader so
+      # bin/release.php can load the FanxieLab\WpUpdates classes. The library
+      # has no runtime dependencies, so dump-autoload (no network) is enough;
+      # release.php also carries its own PSR-4 fallback as a second line.
+      - name: Generate the tooling autoloader
+        run: composer dump-autoload --optimize --no-interaction --working-dir=.fx-updates
+
       - name: Require a compiled-in public key
         env:
           KEY_FILE: ${{ inputs.key_file }}
